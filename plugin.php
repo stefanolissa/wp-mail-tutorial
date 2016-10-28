@@ -31,7 +31,27 @@ class WPMailTutorial {
         // Please, admin related code should be executed only in the admin context (be green save energy)
         if (is_admin()) {
             add_action('admin_menu', array($this, 'hook_admin_menu'));
+            
+            // We are just playing, this line should be removed
+            $this->hook_activation();
         }
+        
+        register_activation_hook(__FILE__, array($this, 'hook_activation'));
+    }
+    
+    /**
+     * @global wpdb $wpdb
+     */
+    function hook_activation() {
+        global $wpdb;
+    
+        require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
+        dbDelta(
+        "CREATE TABLE `{$wpdb->prefix}mail_tutorial` (
+        `id` int(11) NOT NULL AUTO_INCREMENT,
+        `data` longtext,
+        PRIMARY KEY (`id`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8;");
     }
 
     function hook_admin_menu() {
@@ -40,49 +60,57 @@ class WPMailTutorial {
     }
 
     /**
-     * $phpmailer is an object so changes are "global".
+     * Instead of using globals we can eventually declare the $phpmailer arg as
+     * &$phpmailer so we can change the object used by wp_mail(), but this way should be
+     * easier to understand.
      * 
-     * @param PHPMailer $phpmailer
+     * It's not required to restore the original $phpmailer since wp_mail() checks its type
+     * and eventually it instantiates a new object. Restoring it save that extra work.
+     * 
+     * We do not use the arg of this function and we don't care of other plugins (disable them!).
+     * 
+     * @param PHPMailer $phpmailerarg
+     * @global PHPMailer $phpmailer
+     * @global wpdb $wpdb
      */
-    function hook_phpmailer_init($phpmailer) {
+    function hook_phpmailer_init($phpmailerarg) {
+        global $wpdb, $phpmailer;
+        
         error_log(__METHOD__);
-
-        if ($phpmailer->ContentType !== 'text/plain') {
-            error_log('Not plain text content type (' . $phpmailer->ContentType . ')... nothing to do');
-            return;
-        }
-
-        // The alternative body will be the original plain text message
-        $phpmailer->AltBody = $phpmailer->Body;
         
-        // Now we htmlize...
-        $body = $phpmailer->Body;
-        $body = wpautop($body);
-        $body = make_clickable($body);
-
-        // Templating...
-        // We encapsulate in a table to center, give a background and a title (tables are
-        // widely used in HTML emails since there are many old clients which do not appreciated
-        // CSS rules).
+        // Save the email
+        $data = array('subject'=>$phpmailer->Subject, 'to'=>$phpmailer->getToAddresses());
+        $wpdb->insert($wpdb->prefix . 'mail_tutorial', array('data'=>json_encode($data, JSON_PRETTY_PRINT)));
         
-        $body = '<table width="600" bgcolor="#f4f4f4" align="center"><tr><td>' . $body . '</td></tr></table>';
+        // Build and keep a fake PHPMailer instance
+        static $fake_phpmailer;
+        if (!$fake_phpmailer) $fake_phpmailer = new FakePHPMailer();
         
-        // Finally we just add some stadard HTML tags (most email clients ignore them).
-        // \r\n are added only to make the message source more readable they do not afftect the HTML
-        // rendering.
-        $phpmailer->Body = "<html>\r\n" .
-                "<head>\r\n<title>" . esc_html($phpmailer->Subject) . "</title>\r\n</head>\r\n" .
-                "<body>\r\n" . 
-                $body .
-                "\r\n</body>\r\n</html>";
-        
-        // or $phpmailer->ContentType = 'text/html'    
-        $phpmailer->isHTML();
-        
-        error_log('Htmlized, yeah!');
+        // Here we replace the global $phpmailer which will be restore after the sending (see the class below)
+        $phpmailer = $fake_phpmailer;
     }
 
 }
 
 new WPMailTutorial();
 
+class FakePHPMailer {
+
+    var $real_phpmailer = null;
+
+    function __construct() {
+        global $phpmailer;
+        $this->real_phpmailer = $phpmailer;
+    }
+
+    function Send() {
+        global $phpmailer;
+        
+        error_log(__METHOD__);
+        
+        // Restores the real phpmailer so WordPress does not create a new object on subsequent wp_mail() calls.
+        $phpmailer = $this->real_phpmailer;
+        return true;
+    }
+
+}
