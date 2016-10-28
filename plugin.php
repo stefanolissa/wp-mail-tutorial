@@ -18,6 +18,8 @@
  * define('WP_DEBUG_LOG', true);
  * 
  * everything is logged in the file wp-content/debug.log. Very useful.
+ * 
+ * This file is formatted using ALT-SHIFT-F in Netbeans.
  */
 class WPMailTutorial {
 
