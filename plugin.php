@@ -25,35 +25,45 @@ class WPMailTutorial {
 
     function __construct() {
 
-        // Here we intercept the hooks needed to change the from address and the from name
-        add_filter('wp_mail_from', array($this, 'hook_wp_mail_from'));
-        add_filter('wp_mail_from_name', array($this, 'hook_wp_mail_from_name'));
-        
+        // Here we intercept the hook to manipulate the whole PHPMailer object
+        add_action('phpmailer_init', array($this, 'hook_phpmailer_init'));
+
         // Please, admin related code should be executed only in the admin context (be green save energy)
         if (is_admin()) {
             add_action('admin_menu', array($this, 'hook_admin_menu'));
         }
     }
-    
+
     function hook_admin_menu() {
         // The shortest way to add a menu entry
         add_options_page('WP Mail Tutorial', 'WP Mail Tutorial', 'manage_options', 'wp-mail-tutorial/settings.php');
     }
 
-    function hook_wp_mail_from($value) {
+    /**
+     * $phpmailer is an object so changes are "global".
+     * 
+     * @param PHPMailer $phpmailer
+     */
+    function hook_phpmailer_init($phpmailer) {
         error_log(__METHOD__);
-        error_log(print_r($value, true));
-        // We just change the address with a replace, but the address can be saved in an option.
-        return str_replace('wordpress@', 'admin@', $value);
+
+        // To add a signature we should at least check if the message is plain text ot HTML.
+        if ($phpmailer->ContentType === 'text/html') {
+            error_log('Adding HTML signature');
+
+            $phpmailer->Body .= '<hr><p><em>Best regards, ' . html_entity_decode(get_option('blogname'), ENT_QUOTES, 'UTF-8') . '.<br>' .
+                    '<a href="' . home_url() . '">' . home_url() . '</a></p>';
+        } else if ($phpmailer->ContentType === 'text/plain') {
+            error_log('Adding plain text signature');
+
+            $phpmailer->Body .= "\r\n\r\n---\r\nBest regards, " . html_entity_decode(get_option('blogname'), ENT_QUOTES, 'UTF-8') . ".\r\n" .
+                    home_url();
+        } else {
+            error_log('Unknown content type (' . $phpmailer->ContentType . ')... no signature added');
+            // When we are not sure, is better to do nothing!
+        }
     }
 
-    function hook_wp_mail_from_name($value) {
-        error_log(__METHOD__);
-        error_log(print_r($value, true));
-        // The original from name is "WordPress" we change it to the blog name
-        // (the entity decode is required since for emails we need to use the plain blog name)
-        return html_entity_decode(get_option('blogname'), ENT_QUOTES, 'UTF-8');
-    }
 }
 
 new WPMailTutorial();
