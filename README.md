@@ -8,3 +8,4 @@ following the article series on [www.satollo.net](http://www.satollo.net/tag/wp-
 - **custom sender** - how to change the from name and the from email address
 - **signature** - how to add a simple signature to all outgoing messages
 - **htmlize** - how to transform every text message to HTML (with a simple template)
+- **smtp** - send email via SMTP
