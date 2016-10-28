@@ -47,39 +47,24 @@ class WPMailTutorial {
     function hook_phpmailer_init($phpmailer) {
         error_log(__METHOD__);
 
-        if ($phpmailer->ContentType !== 'text/plain') {
-            error_log('Not plain text content type (' . $phpmailer->ContentType . ')... nothing to do');
-            return;
-        }
-
-        // The alternative body will be the original plain text message
-        $phpmailer->AltBody = $phpmailer->Body;
+        // Tell PHPMailer to use an external SMTP
+        $phpmailer->isSMTP();
         
-        // Now we htmlize...
-        $body = $phpmailer->Body;
-        $body = wpautop($body);
-        $body = make_clickable($body);
-
-        // Templating...
-        // We encapsulate in a table to center, give a background and a title (tables are
-        // widely used in HTML emails since there are many old clients which do not appreciated
-        // CSS rules).
+        $phpmailer->Host = 'localhost';
+        $phpmailer->Port = 2525; // For my local fake SMTP server
         
-        $body = '<table width="600" bgcolor="#f4f4f4" align="center"><tr><td>' . $body . '</td></tr></table>';
+        // Protocol to use
+        $phpmailer->SMTPSecure = ''; // 'ssl' or 'tls'
         
-        // Finally we just add some stadard HTML tags (most email clients ignore them).
-        // \r\n are added only to make the message source more readable they do not afftect the HTML
-        // rendering.
-        $phpmailer->Body = "<html>\r\n" .
-                "<head>\r\n<title>" . esc_html($phpmailer->Subject) . "</title>\r\n</head>\r\n" .
-                "<body>\r\n" . 
-                $body .
-                "\r\n</body>\r\n</html>";
+        // Credentials required?
+        //$phpmailer->SMTPAuth = true;
+        //$phpmailer->Username = '';
+        //$phpmailer->Password = '';
         
-        // or $phpmailer->ContentType = 'text/html'    
-        $phpmailer->isHTML();
+        // Some SMTP servers (badly configured) have problem with AutoTLS
+        $phpmailer->SMTPAutoTLS = false;
         
-        error_log('Htmlized, yeah!');
+        error_log('Sending with SMTP');
     }
 
 }
