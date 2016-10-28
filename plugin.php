@@ -46,22 +46,42 @@ class WPMailTutorial {
      */
     function hook_phpmailer_init($phpmailer) {
         error_log(__METHOD__);
+        
+        $phpmailer->setFrom('stefano.lissa@omnys.com');
 
-        // To add a signature we should at least check if the message is plain text ot HTML.
-        if ($phpmailer->ContentType === 'text/html') {
-            error_log('Adding HTML signature');
-
-            $phpmailer->Body .= '<hr><p><em>Best regards, ' . html_entity_decode(get_option('blogname'), ENT_QUOTES, 'UTF-8') . '.<br>' .
-                    '<a href="' . home_url() . '">' . home_url() . '</a></p>';
-        } else if ($phpmailer->ContentType === 'text/plain') {
-            error_log('Adding plain text signature');
-
-            $phpmailer->Body .= "\r\n\r\n---\r\nBest regards, " . html_entity_decode(get_option('blogname'), ENT_QUOTES, 'UTF-8') . ".\r\n" .
-                    home_url();
-        } else {
-            error_log('Unknown content type (' . $phpmailer->ContentType . ')... no signature added');
-            // When we are not sure, is better to do nothing!
+        if ($phpmailer->ContentType !== 'text/plain') {
+            error_log('Not plain text content type (' . $phpmailer->ContentType . ')... nothing to do');
+            return;
         }
+
+        // The alternative body will be the original plain text message
+        $phpmailer->AltBody = $phpmailer->Body;
+        
+        // Now we htmlize...
+        $body = $phpmailer->Body;
+        $body = wpautop($body);
+        $body = make_clickable($body);
+
+        // Templating...
+        // We encapsulate in a table to center, give a background and a title (tables are
+        // widely used in HTML emails since there are many old clients which do not appreciated
+        // CSS rules).
+        
+        $body = '<table width="600" bgcolor="#f4f4f4" align="center"><tr><td>' . $body . '</td></tr></table>';
+        
+        // Finally we just add some stadard HTML tags (most email clients ignore them).
+        // \r\n are added only to make the message source more readable they do not afftect the HTML
+        // rendering.
+        $phpmailer->Body = "<html>\r\n" .
+                "<head>\r\n<title>" . esc_html($phpmailer->Subject) . "</title>\r\n</head>\r\n" .
+                "<body>\r\n" . 
+                $body .
+                "\r\n</body>\r\n</html>";
+        
+        // or $phpmailer->ContentType = 'text/html'    
+        $phpmailer->isHTML();
+        
+        error_log('Htmlized, yeah!');
     }
 
 }
